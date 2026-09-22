@@ -962,7 +962,22 @@ id="paymentReference"
 placeholder="Introduce el número de transferencia o referencia">
 
 </div>
+<div class="form-group payment-proof" id="paymentProofBox" style="display:none;">
 
+<label>
+COMPROBANTE DE PAGO
+</label>
+
+<input
+type="file"
+id="paymentProof"
+accept="image/*">
+
+<small style="display:block;color:#777;margin-top:6px;">
+Sube una captura o foto del comprobante de pago.
+</small>
+
+</div>
 <div class="total-box">
 
 <div class="total-line">
@@ -1733,7 +1748,9 @@ function toggleFavorite(id){
 if(favorites.includes(id)){
 
 favorites=
-favorites.filter(x=>x!==id);
+favorites.filter(
+x=>x!==id
+);
 
 }else{
 
@@ -1834,19 +1851,46 @@ document.querySelector(
 'input[name="payment"]:checked'
 )?.value;
 
-let box=
+let referenceBox=
 document.getElementById("referenceBox");
 
+let proofBox=
+document.getElementById("paymentProofBox");
+
+let referenceInput=
+document.getElementById("paymentReference");
+
+let proofInput=
+document.getElementById("paymentProof");
+
 if(
-method==="BANGE"||
+method==="BANGE" ||
 method==="MUNI_DINERO"
-)
-box.classList.add("show");
-else
-box.classList.remove("show");
+){
+
+referenceBox.classList.add("show");
+
+proofBox.style.display="block";
+
+referenceInput.required=true;
+
+proofInput.required=true;
+
+}else{
+
+referenceBox.classList.remove("show");
+
+proofBox.style.display="none";
+
+referenceInput.required=false;
+
+proofInput.required=false;
+
+proofInput.value="";
 
 }
 
+}
 function createOrderNumber(){
 
 let d=new Date();
@@ -1884,151 +1928,203 @@ e.preventDefault();
 
 if(!cart.length){
 
-showToast(
-"Tu carrito está vacío"
-);
+showToast("Tu carrito está vacío");
 
 return;
 
 }
 
-let subtotal=
+const name=
+document.getElementById("customerName").value.trim();
+
+const email=
+document.getElementById("customerEmail").value.trim();
+
+const phone=
+document.getElementById("customerPhone").value.trim();
+
+const country=
+document.getElementById("customerCountry").value;
+
+const address=
+document.getElementById("customerAddress").value.trim();
+
+const method=
+document.querySelector(
+'input[name="payment"]:checked'
+)?.value;
+
+const reference=
+document.getElementById("paymentReference").value.trim();
+
+const proofInput=
+document.getElementById("paymentProof");
+
+if(!method){
+
+showToast("Selecciona un método de pago");
+
+return;
+
+}
+
+if(
+(method==="BANGE" || method==="MUNI_DINERO")
+&& !reference
+){
+
+showToast("Introduce la referencia del pago");
+
+return;
+
+}
+
+if(
+(method==="BANGE" || method==="MUNI_DINERO")
+&& !proofInput.files.length
+){
+
+showToast("Sube el comprobante de pago");
+
+return;
+
+}
+
+const subtotal=
 cart.reduce(
 (s,x)=>s+x.price*x.quantity,
 0
 );
 
-let shipping=0;
+const shipping=0;
 
-let total=
+const total=
 subtotal+shipping;
 
-let method=
-document.querySelector(
-'input[name="payment"]:checked'
-)?.value||"";
-
-if(!method){
-
-showToast(
-"Selecciona un método de pago"
-);
-
-return;
-
-}
-
-let customerNameValue=
-document.getElementById("customerName").value.trim();
-
-let customerEmailValue=
-document.getElementById("customerEmail").value.trim();
-
-let customerPhoneValue=
-document.getElementById("customerPhone").value.trim();
-
-let customerCountryValue=
-document.getElementById("customerCountry").value;
-
-let customerAddressValue=
-document.getElementById("customerAddress").value.trim();
-
-let paymentReferenceValue=
-document.getElementById("paymentReference").value.trim();
-
-let orderNumber=
+const orderNumber=
 createOrderNumber();
 
-let button=
+const button=
 document.querySelector(
-'#checkoutForm .checkout-btn'
+'#checkoutForm button[type="submit"]'
 );
 
 button.disabled=true;
 
-button.textContent=
-"PROCESANDO...";
+button.textContent="PROCESANDO...";
 
 try{
 
-for(const item of cart){
+/* =========================
+   1. CREAR CLIENTE
+========================= */
 
-let product=
-productsData.find(
-p=>p.id===item.id
-);
-
-if(!product){
-
-throw new Error(
-"Producto no encontrado: "+item.name
-);
-
-}
-
-let stock=
-Number(product.stock)||0;
-
-if(
-stock>0 &&
-item.quantity>stock
-){
-
-throw new Error(
-"No hay stock suficiente para: "+
-item.name
-);
-
-}
-
-}
-
-const customerResult=
+const {error:customerError}=
 await supabaseClient
 .from("customers")
 .insert({
 
-name:customerNameValue,
+name:name,
 
-email:customerEmailValue,
+email:email,
 
-phone:customerPhoneValue,
+phone:phone,
 
-country:customerCountryValue,
+country:country,
 
-address:customerAddressValue
+address:address
 
-})
-.select("id")
-.single();
+});
 
-if(customerResult.error){
+if(customerError)
+throw customerError;
 
-throw customerResult.error;
+
+/* =========================
+   2. SUBIR COMPROBANTE
+========================= */
+
+let paymentProof=null;
+
+if(
+(method==="BANGE" || method==="MUNI_DINERO")
+&& proofInput.files.length
+){
+
+button.textContent=
+"SUBIENDO COMPROBANTE...";
+
+const file=
+proofInput.files[0];
+
+const extension=
+file.name
+.split(".")
+.pop()
+.toLowerCase();
+
+const fileName=
+"proofs/"+
+Date.now()+
+"-"+
+Math.random()
+.toString(36)
+.substring(2,10)+
+"."+
+extension;
+
+const {error:uploadError}=
+await supabaseClient
+.storage
+.from("payment-proofs")
+.upload(
+fileName,
+file,
+{
+cacheControl:"3600",
+upsert:false
+}
+);
+
+if(uploadError)
+throw uploadError;
+
+paymentProof=fileName;
 
 }
 
-const orderResult=
+
+/* =========================
+   3. CREAR PEDIDO
+========================= */
+
+button.textContent=
+"CREANDO PEDIDO...";
+
+const {data:order,error:orderError}=
 await supabaseClient
 .from("orders")
 .insert({
 
 order_number:orderNumber,
 
-customer_name:customerNameValue,
+customer_name:name,
 
-customer_email:customerEmailValue,
+customer_email:email,
 
-customer_phone:customerPhoneValue,
+customer_phone:phone,
 
-customer_country:customerCountryValue,
+customer_country:country,
 
-customer_address:customerAddressValue,
+customer_address:address,
 
 payment_method:method,
 
 payment_reference:
-paymentReferenceValue||null,
+reference || null,
+
+payment_proof:
+paymentProof,
 
 subtotal:subtotal,
 
@@ -2036,36 +2132,32 @@ shipping:shipping,
 
 total:total,
 
-payment_status:
-method==="CARD"
-?"pending"
-:"pending",
+payment_status:"pending",
 
 order_status:"new"
 
 })
-.select("id")
+.select()
 .single();
 
-if(orderResult.error){
+if(orderError)
+throw orderError;
 
-throw orderResult.error;
 
-}
+/* =========================
+   4. CREAR PRODUCTOS DEL PEDIDO
+========================= */
 
-const orderId=
-orderResult.data.id;
-
-const itemsData=
+const items=
 cart.map(item=>({
 
-order_id:orderId,
+order_id:order.id,
 
 product_id:item.id,
 
 product_name:item.name,
 
-size:item.size||null,
+size:item.size || null,
 
 quantity:item.quantity,
 
@@ -2073,20 +2165,22 @@ price:item.price
 
 }));
 
-const itemsResult=
+const {error:itemError}=
 await supabaseClient
 .from("order_items")
-.insert(itemsData);
+.insert(items);
 
-if(itemsResult.error){
+if(itemError)
+throw itemError;
 
-throw itemsResult.error;
 
-}
+/* =========================
+   5. ACTUALIZAR STOCK
+========================= */
 
 for(const item of cart){
 
-let product=
+const product=
 productsData.find(
 p=>p.id===item.id
 );
@@ -2094,16 +2188,13 @@ p=>p.id===item.id
 if(!product)
 continue;
 
-let stock=
-Number(product.stock)||0;
+const newStock=
+Math.max(
+0,
+Number(product.stock)-
+Number(item.quantity)
+);
 
-if(stock<=0)
-continue;
-
-let newStock=
-stock-item.quantity;
-
-const updateResult=
 await supabaseClient
 .from("products")
 .update({
@@ -2111,53 +2202,67 @@ stock:newStock
 })
 .eq("id",item.id);
 
-if(updateResult.error){
-
-console.error(
-"Stock update error:",
-updateResult.error
-);
-
 }
 
-product.stock=newStock;
 
-}
+/* =========================
+   6. LIMPIAR CARRITO
+========================= */
 
 cart=[];
 
 save();
 
+
+/* =========================
+   7. LIMPIAR FORMULARIO
+========================= */
+
 document
 .getElementById("checkoutForm")
 .reset();
 
-document.getElementById("referenceBox")
+document
+.getElementById("referenceBox")
 .classList.remove("show");
+
+document
+.getElementById("paymentProofBox")
+.style.display="none";
+
+proofInput.value="";
+
+
+/* =========================
+   8. CERRAR CHECKOUT
+========================= */
 
 closeModal("checkoutOverlay");
 
+
+/* =========================
+   9. MENSAJE
+========================= */
+
 showToast(
-"Pedido "+orderNumber+" creado. En proceso."
+"Pedido enviado: "+orderNumber
 );
 
-console.log(
-"Pedido creado:",
-orderNumber
-);
+button.disabled=false;
+
+button.textContent=
+"REALIZAR PEDIDO";
 
 }catch(error){
 
 console.error(
-"Order error:",
+"Error creando pedido:",
 error
 );
 
 showToast(
-"Error al crear el pedido"
+"Error al realizar el pedido"
 );
-
-}finally{
 
 button.disabled=false;
 
@@ -2166,7 +2271,7 @@ button.textContent=
 
 }
 
-}
+  }
 function filterCategory(category,button){
 
 currentCategory=category;
