@@ -862,6 +862,7 @@ required>
 Selecciona tu país
 </option>
 
+   <option>Guinea Ecuatorial</option>
 <option>España</option>
 <option>Francia</option>
 <option>Alemania</option>
@@ -2264,7 +2265,31 @@ closeModal("checkoutOverlay");
 /* =========================
    9. MENSAJE
 ========================= */
+const whatsappNumber="240555626619";
 
+const whatsappMessage=
+`Hola NØVRA 👋
+
+He realizado un pedido.
+
+Código de pedido: ${orderNumber}
+
+Nombre: ${customerName}
+
+Total: €${total.toFixed(2)}
+
+Quiero confirmar mi pedido.`;
+
+const whatsappURL=
+"https://wa.me/"+
+whatsappNumber+
+"?text="+
+encodeURIComponent(whatsappMessage);
+
+window.open(
+whatsappURL,
+"_blank"
+);
 showToast(
 "Pedido enviado: "+orderNumber
 );
