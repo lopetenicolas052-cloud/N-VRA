@@ -1361,14 +1361,24 @@ ${p.category}
 
 </div>
 
+${
+p.stock > 0
+? `
 <button
 class="add"
 onclick="openProduct(${p.id})">
-
 VER PRODUCTO
-
 </button>
-
+`
+: `
+<button
+class="add"
+disabled
+style="opacity:.5;cursor:not-allowed;">
+AGOTADO
+</button>
+`
+}
 </div>
 
 </div>
@@ -2195,12 +2205,23 @@ Number(product.stock)-
 Number(item.quantity)
 );
 
-await supabaseClient
-.from("products")
-.update({
-stock:newStock
-})
-.eq("id",item.id);
+for(const item of cart){
+
+  const {data,error}=await supabaseClient.rpc(
+    "reduce_product_stock",
+    {
+      p_product_id:item.id,
+      p_quantity:item.quantity
+    }
+  );
+
+  if(error || data!==true){
+    throw new Error(
+      `Stock insuficiente para ${item.name}`
+    );
+  }
+
+   }
 
 }
 
