@@ -1301,7 +1301,7 @@ Math.random()
 +
 extension;
 
-const {error} =
+  const {data,error} =
 await supabaseClient
 .storage
 .from("product-images")
@@ -1310,11 +1310,9 @@ upsert:false
 });
 
 if(error){
-
-console.error(error);
-
-throw error;
-
+console.error("ERROR SUBIENDO IMAGEN:",error);
+throw new Error("Error al subir imagen: " + error.message);
+}
 }
 
 const {data} =
